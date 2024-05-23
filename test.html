@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Stats Over Seasons</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .plot {
+            margin-top: 20px;
+        }
+        .bar {
+            fill: steelblue;
+        }
+        .axis-label {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            padding: 5px;
+            font: 12px sans-serif;
+            background: lightsteelblue;
+            border: 1px solid #aaa;
+            border-radius: 5px;
+            pointer-events: none;
+            opacity: 0;
+        }
+    </style>
+</head>
+<body>
+    <select id="playerDropdown"></select>
+    <select id="statDropdown"></select>
+    <div id="plots" class="plot"></div>
+    <div class="tooltip" id="tooltip" style="opacity: 0;"></div>
+    <script>
+        // Load data from CSV
+        d3.csv("chart2.csv").then(function(data) {
+            // Parse data
+            data.forEach(d => {
+                d.age = +d.age;
+                d.gp = +d.gp;
+                d.pts = +d.pts;
+                d.reb = +d.reb;
+                d.ast = +d.ast;
+                d.net_rating = +d.net_rating;
+                d.usg_pct = +d.usg_pct;
+                d.ts_pct = +d.ts_pct;
+                d.ast_pct = +d.ast_pct;
+            });
+
+            // Extract unique player names
+            const players = Array.from(new Set(data.map(d => d.player_name)));
+
+            // Extract unique stat names
+            const stats = Array.from(new Set(Object.keys(data[0]).filter(key => ["gp", "pts", "reb", "ast", "net_rating", "usg_pct", "ts_pct", "ast_pct"].includes(key))));
+
+            // Create player dropdown menu
+            const playerDropdown = d3.select("#playerDropdown");
+            playerDropdown.selectAll("option")
+                .data(players)
+                .enter()
+                .append("option")
+                .text(d => d)
+                .attr("value", d => d);
+
+            // Create stat dropdown menu
+            const statDropdown = d3.select("#statDropdown");
+            statDropdown.selectAll("option")
+                .data(stats)
+                .enter()
+                .append("option")
+                .text(d => {
+                    const statLabels = {
+            "gp": "Games Played",
+            "pts": "Points",
+            "reb": "Rebounds",
+            "ast": "Assists",
+            "net_rating": "Net Rating",
+            "usg_pct": "Usage Percent",
+            "ts_pct": "True Shooting Percent",
+            "ast_pct":"Assist Percent"
+        };
+        return statLabels[d] || d;
+
+
+                })
+                .attr("value", d => d);
+
+            // Function to update plot
+            function updatePlot(player, stat) {
+                const playerData = data.filter(d => d.player_name === player);
+
+                const plotWidth = 300;
+                const plotHeight = 200;
+                const plotMargin = { top: 20, right: 30, bottom: 30, left: 50 };
+
+                d3.select("#plots").selectAll("*").remove();
+
+                const plotSvg = d3.select("#plots")
+                    .append("svg")
+                    .attr("width", plotWidth + plotMargin.left + plotMargin.right)
+                    .attr("height", plotHeight + plotMargin.top + plotMargin.bottom)
+                    .append("g")
+                    .attr("transform", `translate(${plotMargin.left},${plotMargin.top})`);
+
+                const x = d3.scaleBand()
+                    .domain(playerData.map(d => d.season))
+                    .range([0, plotWidth])
+                    .padding(0.1);
+
+                const y = d3.scaleLinear()
+                    .domain([0, d3.max(playerData, d => +d[stat])])
+                    .nice()
+                    .range([plotHeight, 0]);
+
+                const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+                plotSvg.selectAll(".bar")
+                    .data(playerData)
+                    .enter().append("rect")
+                    .attr("class", "bar")
+                    .attr("x", d => x(d.season))
+                    .attr("y", d => y(d[stat]))
+                    .attr("height", d => plotHeight - y(d[stat]))
+                    .attr("width", x.bandwidth())
+                    .attr("fill", color(0))
+                    .on("mouseover", function(event, d) {
+                        d3.select(this).attr("fill", "orange");
+                        const tooltip = d3.select("#tooltip");
+                        tooltip.transition()
+                            .duration(200)
+                            .style("opacity", .9);
+                        tooltip.html(`${stat}: ${d[stat]}<br>Player: ${d.player_name}<br>Team: ${d.team_abbreviation}<br>Age: ${d.age}`)
+                            .style("left", (event.pageX) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+                    })
+                    .on("mouseout", function() {
+                        d3.select(this).attr("fill", color(0));
+                        d3.select("#tooltip").transition()
+                            .duration(500)
+                            .style("opacity", 0);
+                    });
+
+                plotSvg.append("g")
+                    .attr("class", "x-axis")
+                    .attr("transform", `translate(0,${plotHeight})`)
+                    .call(d3.axisBottom(x))
+                    .selectAll("text")
+                    .attr("transform", "rotate(-65)")
+                    .style("text-anchor", "end");
+
+                plotSvg.append("g")
+                    .attr("class", "y-axis")
+                    .call(d3.axisLeft(y));
+
+                plotSvg.append("text")
+                    .attr("x", plotWidth / 2)
+                    .attr("y", -5)
+                    .attr("text-anchor", "middle")
+                    .text(stat)
+                    .attr("class", "axis-label");
+            }
+
+            playerDropdown.on("change", function() {
+                const selectedPlayer = d3.select(this).property("value");
+                const selectedStat = d3.select("#statDropdown").property("value");
+                updatePlot(selectedPlayer, selectedStat);
+            });
+
+            statDropdown.on("change", function() {
+                const selectedPlayer = d3.select("#playerDropdown").property("value");
+                const selectedStat = d3.select(this).property("value");
+                updatePlot(selectedPlayer, selectedStat);
+            });
+
+            // Initialize plot with the first player and stat in the lists
+            updatePlot(players[0], stats[0]);
+        });
+    </script>
+</body>
+</html>

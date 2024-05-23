@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Connections</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        /* Add CSS styling here */
+        .node {
+            fill: steelblue;
+        }
+        .link {
+            stroke: #999;
+            stroke-opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // Set up SVG container
+        const svgWidth = 1400;
+        const svgHeight = 750;
+
+        const margin = { top: 180, right: 0, bottom: 0, left: 350 };
+        const width = svgWidth - margin.left - margin.right;
+        const height = svgHeight - margin.top - margin.bottom;
+
+        const svg = d3.select("body").append("svg")
+            .attr("width", svgWidth)
+            .attr("height", svgHeight)
+            .append("g")
+            .attr("transform", "translate(" + (svgWidth/4 - margin.left) + "," + (svgHeight/4 - margin.top) + ")");
+
+        // Load data from CSV
+        d3.csv("AllConnections.csv").then(function(data) {
+            // Prepare data
+            const players = data.columns.slice(1);
+            const matrix = data.map(d => players.map(p => +d[p]));
+            console.log(matrix);
+
+            // Create scales
+            const xScale = d3.scaleBand()
+                .domain(players)
+                .range([0, width])
+                .padding(0.1);
+
+            const yScale = d3.scaleBand()
+                .domain(players)
+                .range([0, height])
+                .padding(0.1);
+
+
+            // Calculate the number of rows and columns based on the number of players
+            const numRows = Math.ceil(Math.sqrt(players.length));
+            const numCols = Math.ceil(players.length / numRows);
+
+            // Calculate the spacing between nodes
+            const paddingX = width / (numCols + 1) + 35;
+            const paddingY = height / (numRows + 1) + 20;
+
+            // Set up an array to store node positions
+            const nodePositions = [];
+
+            // Calculate node positions
+            for (let i = 0; i < players.length; i++) {
+                const row = Math.floor(i / numCols);
+                const col = i % numCols;
+
+                // Hexagonal stagger
+                const x = paddingX * (col + 1) + (row % 2) * (paddingX / 2);
+                const y = paddingY * (row + 1);
+
+                nodePositions.push({ id: players[i], x, y });
+            }
+
+            // Set up force simulation with fixed positions
+            const simulation = d3.forceSimulation(nodePositions)
+                .force("charge", d3.forceManyBody().strength(-10))
+                .force("collision", d3.forceCollide().radius(10))
+                .stop();
+
+            // Run simulation for some iterations to let nodes settle
+            for (let i = 0; i < 300; ++i) simulation.tick();
+
+
+            // Draw nodes
+            
+            
+
+            
+            const nodes = simulation.nodes();
+
+            function createCurvePath(d, nodes) {
+                const source = nodes.find(node => node.id === d.player);
+                const target = nodes.find(node => node.id === d.other);
+                const dx = target.x - source.x;
+                const dy = target.y - source.y;
+                const dr = Math.sqrt(dx * dx + dy * dy);
+
+                // Determine control point for curvature
+                const cx = source.x + dx / 3 + dy / 4;
+                const cy = source.y + dy / 3 - dx / 4;
+
+                return `M${source.x},${source.y} Q${cx},${cy} ${target.x},${target.y}`;
+            }
+
+            // Draw links with curves
+            const linkData = players.flatMap((player, i) => 
+                players.slice(i + 1).map(other => ({
+                    player,
+                    other,
+                    value: matrix[i][data.columns.indexOf(other) - 1]
+                }))
+            );
+
+            console.log(linkData);
+
+            svg.selectAll(".link")
+                .data(linkData)
+                .enter()
+                .append("path")
+                .filter(d => d.value !== 0) // Only draw if value is not 0
+                .attr("class", "link")
+                .attr("d", d => createCurvePath(d, nodePositions))
+                .attr("stroke-width", d => Math.pow(d.value, 1.25))
+                .attr("fill", "none")
+                .attr("stroke", "black");
+
+            const tooltip = d3.select(".tooltip");
+        
+            svg.selectAll(".node")
+                .data(nodePositions)
+                .enter().append("circle")
+                .attr("class", "node")
+                .style("fill", "white") // Set circle color to white
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y)
+                .attr("r", 15); // Adjust node size as needed
+
+            svg.selectAll(".text")
+                .data(simulation.nodes())
+                .enter().append("text")
+                .attr("class", "text")
+                .attr("x", d => d.x)
+                .attr("y", d => d.y)
+                .attr("text-anchor", "middle")
+                .style("font-size", "10px")
+                .each(function(d) {
+                    const parts = d.id.split(" ");
+                    d3.select(this).append("tspan")
+                        .attr("x", d.x)
+                        .attr("dy", "-0.2em")
+                        .text(parts[0]);
+                    d3.select(this).append("tspan")
+                        .attr("x", d.x)
+                        .attr("dy", "1.2em")
+                        .text(parts[1]);
+                });
+        });
+    </script>
+</body>
+</html>
