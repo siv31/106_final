@@ -751,9 +751,7 @@
         d3.csv("output.csv").then(function(data) {
             // Extract unique player names
             const players = Array.from(new Set(data.map(d => d.player_name)));
-
-            // Map for full names of statistics
-            const statNames = {
+            const statNames1 = {
                 pts: "Points",
                 reb: "Rebounds",
                 ast: "Assists",
@@ -761,16 +759,15 @@
                 usg_pct: "Usage Percent"
                 // Add more mappings as needed
             };
-
             // Function to update plot
-            function updatePlot(stat) {
-                const plotWidth = 600;
-                const plotHeight = 400;
-                const plotMargin = { top: 20, right: 30, bottom: 100, left: 70 }; // Increased bottom margin for labels
+            function updatePlot1(stat) {
+                const plotWidth1 = 600;
+                const plotHeight1 = 400;
+                const plotMargin1 = { top: 20, right: 30, bottom: 100, left: 70 }; // Increased bottom margin for x-axis labels
 
-                d3.select("#plots").selectAll("*").remove();
+                d3.select("#plots1").selectAll("*").remove();
 
-                const plotSvg = d3.select("#plots")
+                const plotSvg1 = d3.select("#plots1")
                     .append("svg")
                     .attr("width", plotWidth + plotMargin.left + plotMargin.right)
                     .attr("height", plotHeight + plotMargin.top + plotMargin.bottom)
@@ -779,7 +776,7 @@
 
                 const x = d3.scaleBand()
                     .domain(players)
-                    .range([0, plotWidth])
+                    .range([0, plotWidth1])
                     .padding(0.1);
 
                 const y = d3.scaleLinear()
@@ -793,11 +790,19 @@
 
                 const playersWith202122Stat = new Set(data.filter(d => d.season === "2021-22").map(d => d.player_name));
 
-                const colorScale = d3.scaleOrdinal()
-                    .domain(["2019-20", "2020-21", "2021-22"]) // Assuming only these seasons are available
-                    .range(["#8e0e8e ", "#ff7f0e", "#66b3ff "]); // Colors for each season
+                const statMap = {
+                    "pts": "Points",
+                    "reb": "Rebounds",
+                    "ast": "Assists",
+                    "net_rating": "Net Rating",
+                    "usg_pct": "Usage Percent"
+                };
 
-                plotSvg.selectAll(".dot")
+                const colorScale = d3.scaleOrdinal()
+                   .domain(["2019-20", "2020-21", "2021-22"]) // Assuming only these seasons are available
+                    .range(["#8e0e8e ", "#ff7f0e", "#66b3ff "]);ach season
+
+                plotSvg1.selectAll(".dot")
                     .data(data)
                     .enter().append("circle")
                     .attr("class", "dot")
@@ -823,7 +828,8 @@
                             .style("opacity", 0);
                     });
 
-                plotSvg.append("g")
+
+                plotSvg1.append("g")
                     .attr("class", "x-axis")
                     .attr("transform", `translate(0,${plotHeight})`)
                     .call(d3.axisBottom(x).tickSizeOuter(0)) // Removed outer ticks
@@ -832,44 +838,43 @@
                     .attr("transform", "rotate(-45)") // Rotated labels to 45 degrees
                     .style("text-anchor", "end")
                     .attr("dy", "0.5em") // Adjusted padding to fit labels
-                    .attr("dx", "-0.5em"); // Adjusted padding to fit labels
+                    .attr("dx", "-0.5em"); /
 
-                plotSvg.append("g")
+                plotSvg1.append("g")
                     .attr("class", "y-axis")
                     .call(d3.axisLeft(y));
 
-                // X-axis label
-                plotSvg.append("text")
+                plotSvg1.append("text")
                     .attr("x", plotWidth / 2)
                     .attr("y", plotHeight + plotMargin.bottom - 10) // Positioning further below the x-axis
                     .attr("text-anchor", "middle")
                     .text("Players")
                     .attr("class", "axis-label");
 
-                // Y-axis label
-                plotSvg.append("text")
-                    .attr("transform", "rotate(-90)")
+                plotSvg1.append("text")
+                   .attr("x", plotWidth / 2)
+                    .attr("y", -5)
+                    .attr("text-anchor", "middle")
+                    .text(`${statNames[stat]} Over Seasons`)
+                    .attr("class", "axis-label");
+                // Add the y-axis label
+                plotSvg1.append("text")
+                   .attr("transform", "rotate(-90)")
                     .attr("x", -plotHeight / 2)
                     .attr("y", -plotMargin.left + 20) // Positioning to the left of the y-axis
                     .attr("text-anchor", "middle")
                     .text(statNames[stat])
                     .attr("class", "axis-label");
-
-                plotSvg.append("text")
-                    .attr("x", plotWidth / 2)
-                    .attr("y", -5)
-                    .attr("text-anchor", "middle")
-                    .text(`${statNames[stat]} Over Seasons`)
-                    .attr("class", "axis-label");
             }
 
             // Initialize plot with the first stat in the list
-            updatePlot("pts"); // Default stat
+            updatePlot1("pts"); // Default stat
 
             // Dropdown change event
-            d3.select("#statDropdown").on("change", function() {
-                const selectedStat = d3.select(this).property("value");
-                updatePlot(selectedStat);
+            d3.select("#statDropdown1").on("change", function() {
+                const selectedStat1 = d3.select(this).property("value");
+                updatePlot1(selectedStat1);
+
             });
         });
     </script>
