@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        /* Add CSS styling here */
+        .node {
+            fill: steelblue;
+        }
+        .link {
+            stroke: #999;
+            stroke-opacity: 0.6;
+        }
+        .tooltip {
+            position: absolute;
+            text-align: left;
+            padding: 8px;
+            font: 12px times;
+            background: lightpink; /* Background color */
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .plot {
+            margin-top: 20px;
+        }
+        .bar {
+            fill: rgb(233, 158, 104);
+        }
+        .axis-label {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .tool {
+            position: absolute;
+            text-align: left;
+            padding: 5px;
+            font: 12px times;
+            background: lightpink;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            pointer-events: none;
+            opacity: 0;
+        }
+        .toggle-button {
+            background-color: #4CAF50; 
+            border: none; 
+            color: white; 
+            padding: 5px 10px; 
+            text-align: center; 
+            text-decoration: none; 
+            display: inline-block;
+            font-size: 14px;
+            margin: 0px 0px; 
+            cursor: pointer;
+            border-radius: 12px; 
+            transition-duration: 0.4s;
+        }
+
+        .toggle-button:hover {
+            background-color: white;
+            color: black;
+        }
+
+        .container {
+            text-align: center;
+        }
+
+        select {
+            background-color: #4CAF50;
+            color: white;
+            padding: 5px 10px;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            margin: 5px 0;
+            cursor: pointer;
+            transition-duration: 0.4s;
+        }
+
+        select option {
+            color: black;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Analysis of the 2022 NBA Season</h2>
+    </div>
+    <div>
+        <h2>2022 Season Introduction</h2>
+        <h4>The 20-2021 and 21-2022 NBA seasons marked a transitionary period in the NBA. The stars of late 2010s were entering their early-thirties and nearing their retirement from the NBA, opening space for 
+            younger NBA players to fill. This led to significant volatility as teams in their last few seasons as championship contenders faced off against teams that were rising in the NBA ranks.
+        </h4>
+    </div>
+    <div>
+        <h2>Previous Years vs 2022 Teammates and Rating</h2>
+        <h4>The chart below demonstrates the large shifts that were taking place in the NBA. Each node is a Top 50 NBA player in the 2022 season by points scored per game. The node colors are determined by the
+            players' net rating and the connecting lines are the players teammates, with line thickness representing the number of seasons. Green is the highest net rating, while red is the lowest. Net rating 
+            indicates how much better the player's team performs while he is on the court vs off the court Both charts show the net rating, their teammates, and their age in 2022. The 2022 chart shows their 
+            current team as well. Clicking back and forth can help visualize the changes.
+        </h4>
+        <h4>Hovering over players nodes shows older NBA players' net rating drop (like Lebron James and Kevin Durant) while younger players' tended to increase (like Jason Tatum and Devin Booker). Additionally, 
+            almost twice as many Top 50 players do not have Top 50 teammates compared to the previous 8 years and fewer Top-50 players have moved around in the last 3 years.
+        </h4>
+    </div>
+
+    <div id="chartSelector" class="container">
+        <button class="toggle-button" data-value="chart1">2014 - 2021 Average Ratings and Connections</button>
+        <button class="toggle-button" data-value="chart2">2022 Ratings and Connections</button>
+    </div>
+    
+
+    <div class="tooltip" id="tooltip" style="opacity: 1;"></div>
+
+    <div id="chartContainer"></div>
+
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="path/to/your/d3-script.js"></script>
+    <script>
+        const svgWidth = 1400;
+        const svgHeight = 750;
+        const margin = { top: 180, right: 0, bottom: 0, left: 350 };
+        const width = svgWidth - margin.left - margin.right;
+        const height = svgHeight - margin.top - margin.bottom;
+
+        const svg = d3.select("#chartContainer").append("svg")
+            .attr("width", svgWidth)
+            .attr("height", svgHeight)
+            .append("g")
+            .attr("transform", "translate(" + (svgWidth / 4 - margin.left) + "," + (svgHeight / 4 - margin.top) + ")");
+
+        function createChart(dataFile, statsFile, domain) {
+
+            svg.selectAll("*").remove();
+            
+            d3.csv(dataFile).then(function(data) {
+                const players = data.columns.slice(1);
+                const matrix = data.map(d => players.map(p => +d[p]));
+
+                const xScale = d3.scaleBand().domain(players).range([0, width]).padding(0.1);
+                const yScale = d3.scaleBand().domain(players).range([0, height]).padding(0.1);
+
+                const numRows = Math.ceil(Math.sqrt(players.length));
+                const numCols = Math.ceil(players.length / numRows);
+
+                const paddingX = width / (numCols + 1) + 35;
+                const paddingY = height / (numRows + 1) + 20;
+
+                const nodePositions = players.map((player, i) => {
+                    const row = Math.floor(i / numCols);
+                    const col = i % numCols;
+                    const x = paddingX * (col + 1) + (row % 2) * (paddingX / 2);
+                    const y = paddingY * (row + 1);
+                    return { id: player, x, y };
+                });
+
+                const simulation = d3.forceSimulation(nodePositions)
+                    .force("charge", d3.forceManyBody().strength(-10))
+                    .force("collision", d3.forceCollide().radius(10))
+                    .stop();
+
+                for (let i = 0; i < 300; ++i) simulation.tick();
+
+                const linkData = players.flatMap((player, i) =>
+                    players.slice(i + 1).map(other => ({
+                        player,
+                        other,
+                        value: matrix[i][data.columns.indexOf(other) - 1]
+                    }))
+                );
+
+                svg.selectAll(".link")
+                    .data(linkData)
+                    .enter().append("path")
+                    .filter(d => d.value !== 0)
+                    .attr("class", "link")
+                    .attr("d", d => {
+                        const source = nodePositions.find(node => node.id === d.player);
+                        const target = nodePositions.find(node => node.id === d.other);
+                        const dx = target.x - source.x;
+                        const dy = target.y - source.y;
+                        const dr = Math.sqrt(dx * dx + dy * dy);
+                        const cx = source.x + dx / 3 + dy / 4;
+                        const cy = source.y + dy / 3 - dx / 4;
+                        return `M${source.x},${source.y} Q${cx},${cy} ${target.x},${target.y}`;
+                    })
+                    .attr("stroke-width", d => Math.pow(d.value, 1.7)+0.5)
+                    .attr("fill", "none")
+                    .attr("stroke", "black");
+
+                d3.csv(statsFile).then(function(colorData) {
+                    const playerMap = {};
+                    colorData.forEach(d => {
+                        playerMap[d.PLAYER || d.player_name] = [+d.net_rating, d.team_abbreviation, d.age];
+                    });
+
+                    const colorScale = d3.scaleSequential(d3.interpolateRgb("darkred", "lightgreen")).domain(domain);
+
+                    svg.selectAll(".node")
+                        .data(nodePositions)
+                        .enter().append("circle")
+                        .attr("class", "node")
+                        .style("fill", d => {
+                            const playerData = playerMap[d.id];
+                            return playerData ? colorScale(playerData[0]) : 'gray';
+                        })
+                        .attr("cx", d => d.x)
+                        .attr("cy", d => d.y)
+                        .style("opacity", .7)
+                        .attr("r", 26)
+                        .on("mouseover", function(event, d) {
+                            const playerData = playerMap[nodePositions[d].id];
+                            const tooltip = d3.select("#tooltip");
+                            tooltip.transition()
+                                .style("opacity", .9);
+                            tooltip.html(`Player: ${nodePositions[d].id}<br>Age in 2022: ${playerData[2]}<br>Rating: ${(playerData[0]).toFixed(2)}<br>Team: ${playerData[1]}`)
+                                .style("left", event.x)
+                                .style("top", event.y+400);
+                        })
+                        .on("mousemove", function(event) {
+                            d3.select("#tooltip")
+                                .style("left", (event.x) + "px")
+                                .style("top", (event.y+400) + "px");
+                        })
+                        .on("mouseout", function() {
+                            d3.select("#tooltip").transition()
+                                .style("opacity", 0);
+                        });
+
+                    svg.selectAll(".text")
+                        .data(nodePositions)
+                        .enter().append("text")
+                        .attr("class", "text")
+                        .attr("x", d => d.x)
+                        .attr("y", d => d.y)
+                        .attr("text-anchor", "middle")
+                        .style("font-size", "10px")
+                        .each(function(d) {
+                            const parts = d.id.split(" ");
+                            d3.select(this).append("tspan").attr("x", d.x).attr("dy", "-0.2em").text(parts[0]);
+                            d3.select(this).append("tspan").attr("x", d.x).attr("dy", "1.2em").text(parts[1]);
+                        })
+                        .on("mouseover", function(event, d) {
+                            const playerData = playerMap[nodePositions[d].id];
+                            const tooltip = d3.select("#tooltip");
+                            tooltip.transition()
+                                .style("opacity", .9);
+                            tooltip.html(`Player: ${nodePositions[d].id}<br>Age in 2022: ${playerData[2]}<br>Rating: ${(playerData[0]).toFixed(2)}<br>Team: ${playerData[1]}`)
+                                .style("left", event.x)
+                                .style("top", event.y+400);
+                        })
+                        .on("mousemove", function(event) {
+                            d3.select("#tooltip")
+                                .style("left", (event.x) + "px")
+                                .style("top", (event.y+400) + "px");
+                        })
+                        .on("mouseout", function() {
+                            d3.select("#tooltip").transition()
+                                .style("opacity", 0);
+                        });
+                });
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const buttons = document.querySelectorAll(".toggle-button");
+            
+            buttons.forEach(button => {
+                button.addEventListener("click", function() {
+                    buttons.forEach(btn => btn.classList.remove("active"));
+                    this.classList.add("active");
+                    
+                    const selectedChart = this.getAttribute("data-value");
+                    
+                    if (selectedChart === "chart1") {
+                        createChart("AllConnections.csv", "stats14.csv", [-10, 10.5]);
+                    } else if (selectedChart === "chart2") {
+                        createChart("2022Connections.csv", "2022stats.csv", [-7, 12.5]);
+                    }
+                });
+            });
+        });
+
+        // Initial chart
+        createChart("AllConnections.csv", "stats14.csv", [-10, 11]);
+
+    </script>
+
+
+    <div>
+        <h2>Top 8 2022 Playoff Teams</h2>
+        <h4>The chart below shows the 4 teams from each NBA conference that made it to the second round in 2022. DAL, GSW, PHX, and MEM from the west, and BOS, MIL, MIA, and PHI from the east. 5 of the 8 teams on this chart
+            have made it or won the finals in the past 3 years. The ages of the players also shows the faceoff between the older teams (GSW and PHI) and the younger teams (BOS, PHX, DAL).
+        </h4>
+    </div>
+
+    <div class="tooltip" id="tooltip1" style="opacity: 0;"></div>
+        
+    <script>
+
+        // Set up SVG container for the second chart
+        const svgWidth3 = 1400;
+        const svgHeight3 = 700;
+
+        const margin3 = { top: 180, right: 0, bottom: 0, left: 350 };
+        const width3 = svgWidth3 - margin3.left - margin3.right;
+        const height3 = svgHeight3 - margin3.top - margin3.bottom;
+
+        const svg3 = d3.select("body").append("svg")
+            .attr("width", svgWidth3)
+            .attr("height", svgHeight3)
+            .append("g")
+            .attr("transform", "translate(" + (svgWidth3/4 - margin3.left) + "," + (svgHeight3/4 - margin3.top) + ")");
+
+        // Load data from CSV for the second chart
+        d3.csv("2022Top8.csv").then(function(data) {
+            // Prepare data for the second chart
+            const players3 = data.columns.slice(1);
+            const matrix3 = data.map(d => players3.map(p => +d[p]));
+
+            // Create scales for the second chart
+            const xScale3 = d3.scaleBand()
+                .domain(players3)
+                .range([0, width3])
+                .padding(0.1);
+
+            const yScale3 = d3.scaleBand()
+                .domain(players3)
+                .range([0, height3])
+                .padding(0.1);
+
+            // Calculate the number of rows and columns based on the number of players for the second chart
+            const numRows3 = Math.ceil(Math.sqrt(players3.length));
+            const numCols3 = Math.ceil(players3.length / numRows3);
+
+            // Calculate the spacing between nodes for the second chart
+            const paddingX3 = width3 / (numCols3 + 1) + 35;
+            const paddingY3 = height3 / (numRows3 + 1) + 20;
+
+            // Set up an array to store node positions for the second chart
+            const nodePositions3 = [];
+
+            // Calculate node positions for the second chart
+            for (let i = 0; i < players3.length; i++) {
+                const row = Math.floor(i / numCols3);
+                const col = i % numCols3;
+
+                // Hexagonal stagger for the second chart
+                const x = paddingX3 * (col + 1) + (row % 2) * (paddingX3 / 2);
+                const y = paddingY3 * (row + 1);
+
+                nodePositions3.push({ id: players3[i], x, y });
+            }
+
+            // Set up force simulation with fixed positions for the second chart
+            const simulation3 = d3.forceSimulation(nodePositions3)
+                .force("charge", d3.forceManyBody().strength(-10))
+                .force("collision", d3.forceCollide().radius(10))
+                .stop();
+
+            // Run simulation for some iterations to let nodes settle for the second chart
+            for (let i = 0; i < 300; ++i) simulation3.tick();
+
+            const nodes = simulation3.nodes();
+
+            function createCurvePath(d, nodes) {
+                const source = nodes.find(node => node.id === d.player);
+                const target = nodes.find(node => node.id === d.other);
+                const dx = target.x - source.x;
+                const dy = target.y - source.y;
+                const dr = Math.sqrt(dx * dx + dy * dy);
+
+                // Determine control point for curvature
+                const cx = source.x + dx / 3 + dy / 4;
+                const cy = source.y + dy / 3 - dx / 4;
+
+                return `M${source.x},${source.y} Q${cx},${cy} ${target.x},${target.y}`;
+            }
+
+            // Draw links with curves
+            const linkData = players3.flatMap((player, i) => 
+                players3.slice(i + 1).map(other => ({
+                    player,
+                    other,
+                    value: matrix3[i][data.columns.indexOf(other) - 1]
+                }))
+            );
+
+            const svgRect = svg.node().getBoundingClientRect();
+            svg3.selectAll(".link")
+                .data(linkData)
+                .enter()
+                .append("path")
+                .filter(d => d.value !== 0) // Only draw if value is not 0
+                .attr("class", "link")
+                .attr("d", d => createCurvePath(d, nodePositions3))
+                .attr("stroke-width", d => Math.pow(d.value, 1.7)+0.5)
+                .attr("fill", "none")
+                .attr("stroke", "black");
+
+
+            // Load data from the second CSV
+            d3.csv("2022stats.csv").then(function(colorData) {
+                const playerMap = {};
+                colorData.forEach(d => {
+                    playerMap[d.player_name] = [+d.net_rating, d.team_abbreviation, d.age];
+                });
+                //const colorMap = new Map(colorData.map(d => [d.player_name, +d.net_rating]));
+                
+
+                // Define color scale based on the net ratings
+                const colorScale = d3.scaleSequential(d3.interpolateRgb("darkred", "lightgreen"))
+                    .domain([-8.1, 12.1]);
+
+                svg3.selectAll(".node")
+                    .data(nodePositions3)
+                    .enter().append("circle")
+                    .attr("class", "node")
+                    .style("fill", d => {
+                        const playerData = playerMap[d.id];
+                        return playerData ? colorScale(playerData[0]) : 'gray';
+                    })
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y)
+                    .style("opacity", .6)
+                    .attr("r", 26) // Adjust node size as needed
+                    .on("mouseover", function(event, d) {
+                        const playerData = playerMap[nodePositions3[d].id];
+                        const tooltip = d3.select("#tooltip1");
+                        tooltip.transition()
+                            .style("opacity", .9);
+                        tooltip.html(`Player: ${nodePositions3[d].id}<br>Age in 2022: ${playerData[2]}<br>Rating: ${(playerData[0]).toFixed(2)}<br>Team: ${playerData[1]}`)
+                            .style("left", event.x)
+                            .style("top", event.y+1300);
+                    })
+                    .on("mousemove", function(event) {
+                            d3.select("#tooltip1")
+                                .style("left", (event.x) + "px")
+                                .style("top", (event.y)+1300 + "px");
+                    })
+                    .on("mouseout", function() {
+                        d3.select("#tooltip1").transition()
+                            .style("opacity", 0);
+                    });
+
+            svg3.selectAll(".text")
+                .data(simulation3.nodes())
+                .enter().append("text")
+                .attr("class", "text")
+                .attr("x", d => d.x)
+                .attr("y", d => d.y)
+                .attr("text-anchor", "middle")
+                .style("font-size", "10px")
+                .each(function(d) {
+                    const parts = d.id.split(" ");
+                    d3.select(this).append("tspan")
+                        .attr("x", d.x)
+                        .attr("dy", "-0.2em")
+                        .text(parts[0]);
+                    d3.select(this).append("tspan")
+                        .attr("x", d.x)
+                        .attr("dy", "1.2em")
+                        .text(parts[1]);
+                })
+                .on("mouseover", function(event, d) {
+                        const playerData = playerMap[nodePositions3[d].id];
+                        const tooltip = d3.select("#tooltip1");
+                        tooltip.transition()
+                            .style("opacity", .9);
+                        tooltip.html(`Player: ${nodePositions3[d].id}<br>Age in 2022: ${playerData[2]}<br>Rating: ${(playerData[0]).toFixed(2)}<br>Team: ${playerData[1]}`)
+                            .style("left", event.x)
+                            .style("top", event.y+1300);
+                })
+                .on("mousemove", function(event) {
+                            d3.select("#tooltip1")
+                                .style("left", (event.x) + "px")
+                                .style("top", (event.y)+1300 + "px");
+                })
+                .on("mouseout", function() {
+                    d3.select("#tooltip1").transition()
+                        .style("opacity", 0);
+                });
+            });
+            
+            // Specify additional text elements with manual coordinates
+            const additionalTextData = [
+                { text: "GSW", x: 65 + (nodePositions3[0].x), y: (nodePositions3[0].y) +140, color: "aqua", circle: "aqua", width: 4 + "px"},
+                { text: "DAL", x: (nodePositions3[1].x), y: (nodePositions3[1].y)+55, color: "black", circle: "none", width: 0 + "px"},
+                { text: "BOS", x: 65 + (nodePositions3[2].x)+50, y: (nodePositions3[2].y), color: "dodgerblue", circle: "dodgerblue", width: 4 + "px"},
+                { text: "PHX", x: (nodePositions3[5].x), y: (nodePositions3[5].y)+55, color: "darkgoldenrod", circle: "darkgoldenrod", width: 2 + "px"},
+                { text: "MIL", x: 65 + (nodePositions3[6].x)+50, y: (nodePositions3[6].y), color: "gold", circle: "gold", width: 2 + "px"},
+                { text: "MIA", x: (nodePositions3[9].x)+20, y: (nodePositions3[9].y) +65, color: "black", circle: "black", width: 0.5 + "px"},
+                { text: "MEM", x: 50 + (nodePositions3[10].x), y: (nodePositions3[10].y)+80, color: "black", circle: "none", width: 0 + "px"},
+                { text: "PHI", x: 50 + (nodePositions3[11].x), y: (nodePositions3[11].y)+80, color: "black", circle: "none", width: 0 + "px"}
+            ];
+
+            svg3.selectAll(".manual-text")
+                .data(additionalTextData)
+                .enter().append("text")
+                .attr("class", "manual-text")
+                .attr("x", d => d.x)
+                .attr("y", d => d.y)
+                .text(d => d.text)
+                .attr("text-anchor", "middle")
+                .style("font-size", "12px")
+                .style("fill", d => d.color)
+                .style("font-weight", "bold");
+
+            svg3.selectAll(".manual-circle")
+                .data(additionalTextData)
+                .enter().append("circle")
+                .attr("class", "manual-circle")
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y -4)
+                .attr("r", 20)  // Adjust the radius as needed
+                .style("fill", "none")  // Fill color (none for a transparent fill)
+                .style("stroke", d => d.circle)  // Stroke color for the circle
+                .style("stroke-width", d => d.width);  // Stroke width for the circle
+
+            const info = [
+                { text: "2022 Winner", x: 65 + (nodePositions3[0].x), y: (nodePositions3[0].y) +170, color: "aqua", circle: "aqua", width: 4 + "px"},
+                { text: "2022 Finalist", x: 65 + (nodePositions3[2].x)+50, y: (nodePositions3[2].y + 30), color: "dodgerblue", circle: "dodgerblue", width: 4 + "px"},
+                { text: "2021 Finalist", x: (nodePositions3[5].x), y: (nodePositions3[5].y)+85, color: "darkgoldenrod", circle: "darkgoldenrod", width: 2 + "px"},
+                { text: "2021 Winner", x: 65 + (nodePositions3[6].x)+50, y: (nodePositions3[6].y + 30), color: "gold", circle: "gold", width: 2 + "px"},
+                { text: "2020 Finalist", x: (nodePositions3[9].x)+20, y: (nodePositions3[9].y) +95, color: "black", circle: "black", width: 0.5 + "px"},
+            ];
+
+            svg3.selectAll(".texto")
+                .data(info)
+                .enter().append("text")
+                .attr("class", "texto")
+                .attr("x", d => d.x)
+                .attr("y", d => d.y)
+                .text(d => d.text)
+                .attr("text-anchor", "middle")
+                .style("font-size", "12px")
+                .style("fill", d => d.color)
+                .style("font-weight", "bold");
+        });
+    </script>
+
+    <div>
+        <h2>Top 50 NBA Players Statistics</h2>
+        <h4>The chart below shows some of the statistics that the Top 50 players in the 2021-2022 season generated over their careers in the NBA. Points, Assits, Rebounds, and True Shooting Percentage are good
+            indicators of player performance in each season. Usage percentage is how many posessions end with a player and assist percentage is how many of the teams shots were assisted by the player. These two metrics 
+            are good indicators of how much importance the player has on the team they play on. Players like Lebron James, Paul George, and Kevin Durant have seen their Games Played and Net Rating drop over the 
+            last few years. Meanwhile, Jayson Tatum and Jaylen Brown saw all of their statistics increase across the board over the last few years.
+        </h4>
+    </div>
+
+
+    <select id="playerDropdown"></select>
+    <select id="statDropdown"></select>
+    <div id="plots" class="plot"></div>
+    <div class="tool" id="tooltip5" style="opacity: 0;"></div>
+    <script>
+        // Load data from CSV
+        d3.csv("chart2.csv").then(function(data) {
+            // Parse data
+            data.forEach(d => {
+                d.age = +d.age;
+                d.gp = +d.gp;
+                d.pts = +d.pts;
+                d.reb = +d.reb;
+                d.ast = +d.ast;
+                d.net_rating = +d.net_rating;
+                d.usg_pct = +d.usg_pct;
+                d.ts_pct = +d.ts_pct;
+                d.ast_pct = +d.ast_pct;
+            });
+
+            // Extract unique player names
+            const players = Array.from(new Set(data.map(d => d.player_name)));
+
+            // Extract unique stat names
+            const stats = Array.from(new Set(Object.keys(data[0]).filter(key => ["gp", "pts", "reb", "ast", "net_rating", "usg_pct", "ts_pct", "ast_pct"].includes(key))));
+
+            // Create player dropdown menu
+            const playerDropdown = d3.select("#playerDropdown");
+            playerDropdown.selectAll("option")
+                .data(players)
+                .enter()
+                .append("option")
+                .text(d => d)
+                .attr("value", d => d);
+
+            // Create stat dropdown menu
+            const statDropdown = d3.select("#statDropdown");
+            statDropdown.selectAll("option")
+                .data(stats)
+                .enter()
+                .append("option")
+                .text(d => {
+                    const statLabels = {
+                        "gp": "Games Played",
+                        "pts": "Points",
+                        "reb": "Rebounds",
+                        "ast": "Assists",
+                        "net_rating": "Net Rating",
+                        "usg_pct": "Usage Percent",
+                        "ts_pct": "True Shooting Percent",
+                        "ast_pct":"Assist Percent"
+                    };
+                    return statLabels[d] || d;
+                })
+                .attr("value", d => d);
+
+            // Function to update plot
+            function updatePlot(player, stat) {
+
+                const statLabels = {
+                    "gp": "Games Played",
+                    "pts": "Points",
+                    "reb": "Rebounds",
+                    "ast": "Assists",
+                    "net_rating": "Net Rating",
+                    "usg_pct": "Usage Percent",
+                    "ts_pct": "True Shooting Percent",
+                    "ast_pct":"Assist Percent"
+                };
+
+                const playerData = data.filter(d => d.player_name === player);
+
+                const plotWidth = 930;
+                const plotHeight = 630;
+                const plotMargin = { top: 20, right: 30, bottom: 60, left: 60 };
+
+                d3.select("#plots").selectAll("*").remove();
+
+                const plotSvg = d3.select("#plots")
+                    .append("svg")
+                    .attr("width", plotWidth + plotMargin.left + plotMargin.right)
+                    .attr("height", plotHeight + plotMargin.top + plotMargin.bottom)
+                    .append("g")
+                    .attr("transform", `translate(${plotMargin.left},${plotMargin.top})`);
+
+                const x = d3.scaleBand()
+                    .domain(playerData.map(d => d.season))
+                    .range([0, plotWidth])
+                    .padding(0.1);
+
+                const y = d3.scaleLinear()
+                    .domain([0, d3.max(playerData, d => +d[stat])])
+                    .nice()
+                    .range([plotHeight, 0]);
+
+                const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+                plotSvg.selectAll(".bar")
+                    .data(playerData)
+                    .enter().append("rect")
+                    .attr("class", "bar")
+                    .attr("x", d => x(d.season))
+                    .attr("y", d => y(d[stat]))
+                    .attr("height", d => plotHeight - y(d[stat]))
+                    .attr("width", x.bandwidth())
+                    .attr("fill", color(0))
+                    .on("mouseover", function(event, d) {
+                        d3.select(this).attr("fill", "orange");
+                        const tooltip5 = d3.select("#tooltip5");
+                        tooltip5.transition()
+                            .duration(200)
+                            .style("opacity", .9);
+                        tooltip5.html(`${stat}: ${playerData[d][stat]}<br>Player: ${playerData[d].player_name}<br>Team: ${playerData[d].team_abbreviation}<br>Age: ${playerData[d].age}`)
+                            .style("left", -300* 1/playerData.length + ((plotWidth-13)/playerData.length) * (event.index - playerData[0].index + 1) + "px")
+                            .style("top", (2600) + "px");
+                    })
+                    .on("mouseout", function() {
+                        d3.select(this).attr("fill", color(0));
+                        d3.select("#tooltip5").transition()
+                            .duration(500)
+                            .style("opacity", 0);
+                    });
+
+                plotSvg.append("g")
+                    .attr("class", "x-axis")
+                    .attr("transform", `translate(0,${plotHeight})`)
+                    .call(d3.axisBottom(x))
+                    .selectAll("text")
+                    .attr("transform", "rotate(-65)")
+                    .style("text-anchor", "end");
+
+                plotSvg.append("g")
+                    .attr("class", "y-axis")
+                    .call(d3.axisLeft(y));
+
+                plotSvg.append("text")
+                    .attr("x", plotWidth / 2)
+                    .attr("y", -5)
+                    .attr("text-anchor", "middle")
+                    .text(playerData[0].player_name + " " + statLabels[stat])
+                    .attr("class", "axis-label");
+
+                plotSvg.append("text")
+                    .attr("class", "axis-label")
+                    .attr("text-anchor", "middle")
+                    .attr("x", plotWidth / 2)
+                    .attr("y", plotHeight + 60)
+                    .text("Seasons"); // Replace with your x-axis label
+
+                // Add the y-axis label
+                plotSvg.append("text")
+                    .attr("class", "axis-label")
+                    .attr("text-anchor", "middle")
+                    .attr("transform", "rotate(-90)")
+                    .attr("x", -plotHeight / 2)
+                    .attr("y", -40)
+                    .text(statLabels[stat]); // Replace with your y-axis label
+
+            }
+
+            playerDropdown.on("change", function() {
+                const selectedPlayer = d3.select(this).property("value");
+                const selectedStat = d3.select("#statDropdown").property("value");
+                updatePlot(selectedPlayer, selectedStat);
+            });
+
+            statDropdown.on("change", function() {
+                const selectedPlayer = d3.select("#playerDropdown").property("value");
+                const selectedStat = d3.select(this).property("value");
+                updatePlot(selectedPlayer, selectedStat);
+            });
+
+            // Initialize plot with the first player and stat in the lists
+            updatePlot(players[0], stats[0]);
+        });
+    </script>
+
+    <div>
+        <h2>Significant Injuries 2022</h2>
+        <h4>This chart shows ______</h4>
+    </div>
+
+    <select id="statDropdown1">
+        <option value="pts">Points</option>
+        <option value="reb">Rebounds</option>
+        <option value="ast">Assists</option>
+        <option value="net_rating">Net Rating</option>
+        <option value="usg_pct">Usage Percent</option>
+    </select>
+    <div id="plots1" class="plot"></div>
+    <div class="tool" id="tooltip6" style="opacity: 0;"></div>
+    <script>
+        // Load data from CSV
+        d3.csv("output.csv").then(function(data) {
+            // Extract unique player names
+            const players = Array.from(new Set(data.map(d => d.player_name)));
+
+            // Function to update plot
+            function updatePlot1(stat) {
+                const plotWidth1 = 600;
+                const plotHeight1 = 400;
+                const plotMargin1 = { top: 20, right: 30, bottom: 100, left: 70 }; // Increased bottom margin for x-axis labels
+
+                d3.select("#plots1").selectAll("*").remove();
+
+                const plotSvg1 = d3.select("#plots1")
+                    .append("svg")
+                    .attr("width", plotWidth1 + plotMargin1.left + plotMargin1.right)
+                    .attr("height", plotHeight1 + plotMargin1.top + plotMargin1.bottom)
+                    .append("g")
+                    .attr("transform", `translate(${plotMargin1.left},${plotMargin1.top})`);
+
+                const x = d3.scaleBand()
+                    .domain(players)
+                    .range([0, plotWidth1])
+                    .padding(0.1);
+
+                const y = d3.scaleLinear()
+                    .domain([0, d3.max(data, d => +d[stat])])
+                    .nice()
+                    .range([plotHeight1, 0]);
+
+                const line = d3.line()
+                    .x(d => x(d.player_name))
+                    .y(d => y(d[stat]));
+
+                const playersWith202122Stat = new Set(data.filter(d => d.season === "2021-22").map(d => d.player_name));
+
+                const statMap = {
+                    "pts": "Points",
+                    "reb": "Rebounds",
+                    "ast": "Assists",
+                    "net_rating": "Net Rating",
+                    "usg_pct": "Usage Percent"
+                };
+
+                const colorScale = d3.scaleOrdinal()
+                    .domain(["2019-20", "2020-21", "2021-22"]) // Assuming only these seasons are available
+                    .range(["#1f77b4", "#ff7f0e", "#2ca02c"]); // Colors for each season
+
+                plotSvg1.selectAll(".dot")
+                    .data(data)
+                    .enter().append("circle")
+                    .attr("class", "dot")
+                    .attr("cx", d => x(d.player_name))
+                    .attr("cy", d => y(d[stat]))
+                    .attr("r", 5)
+                    .attr("fill", d => colorScale(d.season)) // Assign color based on season
+                    .attr("opacity", d => playersWith202122Stat.has(d.player_name) ? 1 : 0.3)
+                    .on("mouseover", function(event, d) {
+                        d3.select(this).attr("r", 8);
+                        const tooltip = d3.select("#tooltip6");
+                        tooltip.transition()
+                            .duration(200)
+                            .style("opacity", .9);
+                        console.log(data);
+                        tooltip.html(`Player: ${data[d].player_name}<br>Season: ${data[d].season}<br>${statMap[stat]}: ${data[d][stat]}`)
+                            .style("left", 20+plotWidth1 + "px")
+                            .style("top", (3300) + "px");
+                    })
+                    .on("mouseout", function() {
+                        d3.select(this).attr("r", 5);
+                        d3.select("#tooltip6").transition()
+                            .duration(500)
+                            .style("opacity", 0);
+                    });
+
+                plotSvg1.append("g")
+                    .attr("class", "x-axis")
+                    .attr("transform", `translate(0,${plotHeight1})`)
+                    .call(d3.axisBottom(x).tickSizeOuter(0)) // Removed outer ticks
+                    .selectAll("text")
+                    .style("font-size", "10px") // Adjusted font size for x-axis labels
+                    .attr("transform", "rotate(-50)") // Rotated labels to vertical orientation
+                    .style("text-anchor", "end")
+                    .attr("dy", "-0.5em") // Adjusted padding to fit labels
+                    .attr("dx", "-0.5em"); // Adjusted padding to fit labels
+
+                plotSvg1.append("g")
+                    .attr("class", "y-axis")
+                    .call(d3.axisLeft(y));
+
+                plotSvg1.append("text")
+                    .attr("x", plotWidth1 / 2)
+                    .attr("y", -5)
+                    .attr("text-anchor", "middle")
+                    .text(`${statMap[stat]} Over Seasons`)
+                    .attr("class", "axis-label");
+
+                plotSvg1.append("text")
+                    .attr("class", "axis-label")
+                    .attr("text-anchor", "middle")
+                    .attr("x", plotWidth1 / 2)
+                    .attr("y", plotHeight1 + 80)
+                    .text("Players"); // Replace with your x-axis label
+
+                // Add the y-axis label
+                plotSvg1.append("text")
+                    .attr("class", "axis-label")
+                    .attr("text-anchor", "middle")
+                    .attr("transform", "rotate(-90)")
+                    .attr("x", -plotHeight1 / 2)
+                    .attr("y", -40)
+                    .text(statMap[stat]); // Replace with your y-axis label
+            }
+
+            // Initialize plot with the first stat in the list
+            updatePlot1("pts"); // Default stat
+
+            // Dropdown change event
+            d3.select("#statDropdown1").on("change", function() {
+                const selectedStat1 = d3.select(this).property("value");
+                updatePlot1(selectedStat1);
+
+            });
+        });
+    </script>
+
+    <div>
+        <h2>Conclusion</h2>
+        <h4>To Conclude</h4>
+    </div>
+
+
+</body>
+</html>
